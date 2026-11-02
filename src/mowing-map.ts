@@ -20,6 +20,7 @@ import {
 } from "./mowing-map-logic";
 import {
   adjustmentMatrix, alignedGeoreference, clientToMap, colorSchemeFor, composeAdjustment, defaultGeoreference,
+  svgMatrixTransform,
   georeferenceServiceData, IDENTITY_ADJUSTMENT, mapCentre, metresPerMapPixel, sameGeoreference,
   screenMatrix, tileUrl, tileZoomFor, visibleTiles, worldTileSource, tileZoomLimit, lowerTileZoomLimit,
   alignGesture, alignHandlePositions, dragHandle, pointOnMap, pullAboutPivot, unadjustPoint, adjustPoint, mapToScreen,
@@ -1069,7 +1070,7 @@ export class LawnMowerMowingMap extends LitElement {
               <image class="real-scene" href=${dronePhoto} x="0" y="0"
                 width=${scene.width} height=${scene.height} preserveAspectRatio="none" />` : nothing}
             <g class=${`mower-layer${world ? " over-world" : ""}${align ? " aligning" : ""}`}
-                transform=${mapAdjustment ?? nothing}>
+                transform=${mapAdjustment ? svgMatrixTransform(mapAdjustment) : nothing}>
             ${this._photoWanted && this._photo && this._photoPath === scene.real_scene_path ? svg`
                 <image class="real-scene" href=${this._photo} x="0" y="0"
                 width=${scene.width} height=${scene.height} />` : nothing}

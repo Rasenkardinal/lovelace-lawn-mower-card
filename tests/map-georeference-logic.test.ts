@@ -6,6 +6,7 @@ import {
   nativeToGeo, nativeToPixel, pixelToGeo, pixelToNative, readMapGeoreference, sameGeoreference, screenMatrix, colorSchemeFor,
   tileMatrix, tileTemplate, tileToGeo, tileUrl, tileZoomFor, visibleTiles, worldTileSource,
   lowerTileZoomLimit, tileZoomLimit, TILE_RETRY_MS,
+  svgMatrixTransform,
   type MapGeoreference, type MapProjection,
 } from "../src/map-georeference-logic.ts";
 
@@ -222,6 +223,7 @@ test("gestures compose about a pivot and keep the size bounded", () => {
   const [a, b, c, d, e, f] = adjustmentMatrix(start, centre);
   const drawn = adjustPoint(start, centre, point);
   near(a * point.x + c * point.y + e, drawn.x, 1e-9); near(b * point.x + d * point.y + f, drawn.y, 1e-9);
+  assert.equal(svgMatrixTransform([1, 0, 0, 1, 12, -8]), "matrix(1 0 0 1 12 -8)");
 });
 
 test("without an alignment the map centre starts at the Home Assistant home", () => {

@@ -296,6 +296,10 @@ export function adjustmentMatrix(adjustment: MapAdjustment, centre: MapPoint): P
   return [c, s, -s, c, origin.x, origin.y];
 }
 
+export function svgMatrixTransform(matrix: PlacedTile["matrix"]): string {
+  return `matrix(${matrix.join(" ")})`;
+}
+
 /**
  * Apply a further rotation/scale about `pivot` (drawn coordinates) after an
  * adjustment. Size stays within MIN/MAX_ADJUSTMENT_SCALE.
