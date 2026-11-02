@@ -71,6 +71,11 @@ the integration's GPS alignment. The card does not orthorectify a normal drone
 photograph. Remove the image in the editor to return to the integration's
 standard backgrounds.
 
+The alignment toolbar also offers **Align from the base**: place the mower
+station on its visible location in the photo, select **Next**, then pull another
+map point onto its corresponding place to refine rotation and scale while the
+station stays fixed.
+
 The garden is placed on the ground with a saved alignment (`georeference`).
 Without one, choosing Map or Satellite opens **Align** from your Home Assistant
 home location (north up, 1 mm per map unit).

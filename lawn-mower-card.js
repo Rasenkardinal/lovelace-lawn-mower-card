@@ -1722,14 +1722,14 @@ var wl=Object.defineProperty;var kl=Object.getOwnPropertyDescriptor;var v=(t,o,e
         aria-label=${this._t(y)} title=${this._t(y)}>${H}</button>`;return d`
       <div class="align-bar" role="group" aria-label=${this._t("mowingMap.alignTools")}>
         ${this._baseTool?u:d`<p class="align-help">${this._t("mowingMap.alignHint")}</p>`}
-        ${n?u:d`<div class="align-row base-tool">
+        <div class="align-row base-tool">
           <button aria-pressed=${this._baseTool?"true":"false"} @click=${this._toggleBaseTool}
             >${this._t("mowingMap.baseTool")}</button>
           ${this._baseTool?d`
             <span class="align-step" role="status">${this._t(this._baseTool.pivot?this._baseTool.step==="move"?"mowingMap.baseToolMove":"mowingMap.baseToolPull":"mowingMap.baseToolPick")}</span>
             ${this._baseTool.step==="move"?d`<button class="primary" ?disabled=${!this._baseTool.pivot} @click=${this._baseToolNext}
                   >${this._t("mowingMap.baseToolNext")}</button>`:d`<button @click=${this._baseToolRestart}>${this._t("mowingMap.baseToolRestart")}</button>`}`:u}
-        </div>`}
+        </div>
         <div class="align-row">
           <div class="stepper" role="group" aria-label=${this._t("mowingMap.alignRotation",{value:s})}>
             <span class="stepper-label">${this._t("mowingMap.rotationLabel")}</span>
