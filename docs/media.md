@@ -55,10 +55,21 @@ in. While aligning, the names follow the mower map.
 
 When the integration describes how its map pixels relate to the mower's own
 coordinates (`projection` in the map response), the background picker in the
-map toolbar offers **Standard**, **Real scene** (when available), **Map** and
-**Satellite**. Map and Satellite draw web-map tiles under the garden map; zones,
-the route and the mower stay on top. The picture keeps the mower map's
-orientation, so the tiles are turned to match it.
+map toolbar offers **Standard**, **Drone photo** (when uploaded), **Real scene**
+(when available), **Map** and **Satellite**. Map and Satellite draw web-map
+tiles under the garden map; zones, the route and the mower stay on top. The
+picture keeps the mower map's orientation, so the tiles are turned to match it.
+
+To use your own drone photo, open the Lawn Mower Card visual editor and upload
+it under **Drone photo for the map**. The compressed image is stored in that
+card's dashboard configuration. Choose **Drone photo** in the map toolbar,
+then use **Align** to move, rotate, and resize the mower map over the fixed
+photo. To save the photo-specific alignment, use Align while editing the card
+in the dashboard editor, then save the dashboard. The alignment is stored in
+the card configuration and is shared with other browsers. It does not change
+the integration's GPS alignment. The card does not orthorectify a normal drone
+photograph. Remove the image in the editor to return to the integration's
+standard backgrounds.
 
 The garden is placed on the ground with a saved alignment (`georeference`).
 Without one, choosing Map or Satellite opens **Align** from your Home Assistant

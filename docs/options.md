@@ -47,10 +47,16 @@
   `left`, `right`, `top-left`, `top-right`, `bottom-left`, or `bottom-right`;
   it is most noticeable with `map_fit: cover`
 - `map_background`: optional starting background of the interactive map:
-  `standard` (default), `real_scene`, `map` (street map) or `satellite`. A
-  background the current scene cannot draw falls back to `standard`; the map
-  toolbar can switch for the current view. See
+  `standard` (default), `drone` (when a photo was uploaded), `real_scene`,
+  `map` (street map) or `satellite`. A background the current scene cannot draw
+  falls back to `standard`; the map toolbar can switch for the current view. See
   [street map and satellite](media.md#street-map-and-satellite).
+- `drone_background_image`: optional drone photo uploaded through the visual
+  editor. The card compresses it to JPEG and stores it in the Lovelace card
+  configuration (up to 2 MiB). Use **Align** in the map toolbar to position
+  the mower map over the photo while editing the card in the dashboard editor,
+  then save the dashboard. Its photo-specific alignment is saved in the card
+  configuration and does not change the integration's GPS alignment.
 - `map_tile_url` / `satellite_tile_url`: optional `http(s)` tile templates with
   `{z}`, `{x}` and `{y}` for the street map (default Esri World Street Map) and satellite
   (default Esri World Imagery) backgrounds

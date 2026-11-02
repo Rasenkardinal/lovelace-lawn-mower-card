@@ -8,6 +8,7 @@ import {
   type HomeAssistant,
   type LawnMowerCardConfig,
 } from "./card-config";
+import { encodeDroneBackgroundImage, readDroneBackgroundImage } from "./drone-image";
 import {
   resolvedMowerCompanionEntity,
   resolvedMowerInteractiveMapEntity,
@@ -39,6 +40,8 @@ export class LawnMowerCardEditor extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
 
   @state() private _config?: LawnMowerCardConfig;
+  @state() private _droneImageError = false;
+  private _droneImageRequest = 0;
 
   private get _locale(): SupportedLocale {
     return resolveLocale(
@@ -142,7 +145,11 @@ export class LawnMowerCardEditor extends LitElement {
         )}
         ${this._mapFitField(normalizeMapFit(config.map_fit))}
         ${this._mapPositionField(normalizeMapPosition(config.map_position))}
-        ${this._mapBackgroundField(normalizeMapBackground(config.map_background))}
+        ${this._mapBackgroundField(
+          normalizeMapBackground(config.map_background),
+          Boolean(readDroneBackgroundImage(config.drone_background_image)),
+        )}
+        ${this._droneBackgroundField(config)}
         ${this._field(
           this._t("editor.mapTileUrl"),
           config.map_tile_url,
@@ -340,12 +347,13 @@ export class LawnMowerCardEditor extends LitElement {
     `;
   }
 
-  private _mapBackgroundField(value: MapBackground) {
+  private _mapBackgroundField(value: MapBackground, hasDronePhoto: boolean) {
     return html`
       <label>
         <span>${this._t("editor.mapBackground")}</span>
         <select data-key="map_background" .value=${value} @change=${this._valueChanged}>
           <option value="standard">${this._t("editor.mapBackgroundStandard")}</option>
+          ${hasDronePhoto ? html`<option value="drone">${this._t("mowingMap.dronePhoto")}</option>` : nothing}
           <option value="real_scene">${this._t("editor.mapBackgroundRealScene")}</option>
           <option value="map">${this._t("editor.mapBackgroundMap")}</option>
           <option value="satellite">${this._t("editor.mapBackgroundSatellite")}</option>
@@ -354,6 +362,61 @@ export class LawnMowerCardEditor extends LitElement {
       </label>
     `;
   }
+
+  private _droneBackgroundField(config: LawnMowerCardConfig) {
+    const image = readDroneBackgroundImage(config.drone_background_image);
+    return html`
+      <div class="drone-background">
+        <label>
+          <span>${this._t("editor.droneBackgroundImage")}</span>
+          <input type="file" accept="image/jpeg,image/png,image/webp"
+            @change=${this._droneImageChanged} />
+          <span class="hint">${this._t("editor.droneBackgroundImageHint")}</span>
+        </label>
+        ${image ? html`
+          <div class="drone-preview">
+            <img src=${image} alt=${this._t("mowingMap.dronePhoto")} />
+            <button type="button" @click=${this._removeDroneImage}>
+              ${this._t("editor.droneBackgroundImageRemove")}
+            </button>
+          </div>` : nothing}
+        ${this._droneImageError
+          ? html`<span class="error" role="alert">${this._t("editor.droneBackgroundImageError")}</span>`
+          : nothing}
+      </div>
+    `;
+  }
+
+  private _droneImageChanged = async (event: Event): Promise<void> => {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+
+    const request = ++this._droneImageRequest;
+    this._droneImageError = false;
+    try {
+      const image = await encodeDroneBackgroundImage(file);
+      if (request !== this._droneImageRequest || !this.isConnected) return;
+      const next = { ...(this._config || getStubConfig()) };
+      next.drone_background_image = image;
+      delete next.drone_background_alignment;
+      next.map_background = "drone";
+      this._emitConfigChanged(next);
+    } catch {
+      if (request === this._droneImageRequest) this._droneImageError = true;
+    }
+  };
+
+  private _removeDroneImage = (): void => {
+    this._droneImageRequest += 1;
+    this._droneImageError = false;
+    const next = { ...(this._config || getStubConfig()) };
+    delete next.drone_background_image;
+    delete next.drone_background_alignment;
+    if (next.map_background === "drone") next.map_background = "standard";
+    this._emitConfigChanged(next);
+  };
 
   private _mowerMarkerFields(config: LawnMowerCardConfig) {
     const fixed = config.mower_marker === "fixed";

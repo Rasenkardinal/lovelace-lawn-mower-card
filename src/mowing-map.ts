@@ -7,6 +7,10 @@ import { abortable, fetchPrivateApi } from "./private-api";
 import type { HomeAssistant } from "./card-config";
 import { actionErrorDetail } from "./action-error";
 import { DREAME_LAWN_MOWER_SERVICE_DOMAIN } from "./card-logic";
+import {
+  readDroneBackgroundImage,
+  readDroneMapAdjustment,
+} from "./drone-image";
 import { mapControlIcon, mowerMapMarker, mowingMapStyles } from "./mowing-map-presentation";
 import {
   availableMapBackgrounds, constrainViewport, DEFAULT_MOWER_SIZE, gardenEmphasis, mowerMarkerTransform, worldDim, effectiveMapBackground, fitMap, isWorldBackground,
@@ -27,6 +31,7 @@ import {
 export type WorldTileConfig = Partial<Record<WorldBackground, WorldTileOptions>>;
 
 type AlignSession = {
+  mode: "world" | "drone";
   /** Freeze the entity, native revision and displayed projection for this editor. */
   context: string;
   /** Alignment the tiles are drawn with while the mower map moves over them. */
@@ -56,6 +61,9 @@ export class LawnMowerMowingMap extends LitElement {
   /** Mower entity targeted by the integration's set_georeference service. */
   @property() public entityId?: string;
   @property({ attribute: false }) public tiles?: WorldTileConfig;
+  @property({ attribute: false }) public droneBackgroundImage?: string;
+  @property({ attribute: false }) public droneBackgroundAlignment?: MapAdjustment;
+  @property({ type: Boolean }) public configEditable = false;
   /** Real mower footprint in mm, or null for the fixed-size icon. */
   @property({ attribute: false }) public mowerSize: MowerSize | null = DEFAULT_MOWER_SIZE;
   /** Custom mower picture from the card; otherwise the integration's, if it sends one. */
@@ -97,6 +105,8 @@ export class LawnMowerMowingMap extends LitElement {
   private _noticeTimer?: number;
   private _holdTimer?: number;
   private _photoPath?: string;
+  private _droneImageSource?: string;
+  private _droneImageData?: string;
   @state() private _view: MapViewport = fitMap(1, 1);
   @state() private _error = false;
   @state() private _loading = false;
@@ -125,6 +135,9 @@ export class LawnMowerMowingMap extends LitElement {
   protected updated(changed: PropertyValues): void {
     if (!this.isConnected) return;
     this._markerCheck.sync(this._wantedMarker());
+    if (changed.has("droneBackgroundImage") && this._align?.mode === "drone") {
+      this._cancelAlign();
+    }
     // Parent summaries/headings can move the canvas without changing its size.
     if (changed.has("hass") || changed.has("appearanceContext") || changed.has("layoutContext")) this._invalidateCanvasRect();
     if (changed.has("fallbackUrl")) this._fallbackFailed = false;
@@ -272,7 +285,23 @@ export class LawnMowerMowingMap extends LitElement {
   /** Without a saved alignment, geographic backgrounds are offered only when one can be made. */
   private get _backgrounds(): MapBackground[] {
     return availableMapBackgrounds(this._scene, Boolean(this._home) &&
-      this._serviceAvailable && Boolean(this._scene?.map_revision));
+      this._serviceAvailable && Boolean(this._scene?.map_revision), Boolean(this._dronePhoto));
+  }
+
+  private get _dronePhoto(): string | undefined {
+    if (this._droneImageSource !== this.droneBackgroundImage) {
+      this._droneImageSource = this.droneBackgroundImage;
+      this._droneImageData = readDroneBackgroundImage(this.droneBackgroundImage);
+    }
+    return this._droneImageData;
+  }
+
+  private get _droneAlignment(): MapAdjustment {
+    return readDroneMapAdjustment(this.droneBackgroundAlignment) ?? IDENTITY_ADJUSTMENT;
+  }
+
+  private get _droneAlignmentSaved(): boolean {
+    return Boolean(readDroneMapAdjustment(this.droneBackgroundAlignment));
   }
 
   /** What is drawn: the picker choice, else the configured default, when the scene allows it. */
@@ -310,6 +339,9 @@ export class LawnMowerMowingMap extends LitElement {
   }
 
   private get _canAlign(): boolean {
+    if (this._background === "drone") {
+      return Boolean(this._scene && this._dronePhoto);
+    }
     return Boolean(this._serviceAvailable && this._scene?.projection &&
       this._scene.map_revision && this._reference);
   }
@@ -320,26 +352,36 @@ export class LawnMowerMowingMap extends LitElement {
 
   private _chooseBackground = (event: Event): void => {
     const value = normalizeMapBackground((event.currentTarget as HTMLSelectElement).value);
+    if (this._align && (this._align.mode === "drone") !== (value === "drone")) {
+      this._cancelAlign();
+    }
     this._backgroundChoice = value;
     const scene = this._scene;
-    if (!isWorldBackground(value)) {
+    if (!isWorldBackground(value) && value !== "drone") {
       this._cancelAlign();
       if (scene && this._view.width > scene.width) this._fit();
-    } else if (!this._aligned && !this._align && this._canAlign) {
+    } else if (value === "drone" && !this._droneAlignmentSaved && !this._align && this._canAlign) {
+      this._startAlign();
+    } else if (isWorldBackground(value) && !this._aligned && !this._align && this._canAlign) {
       this._startAlign();
     }
     if (value === "real_scene" && scene) void this._refreshPhoto(scene);
   };
 
   private _startAlign = (): void => {
-    const base = this._reference;
-    if (!base || !this._canAlign) return;
-    this._align = { base, adjustment: { ...IDENTITY_ADJUSTMENT }, fresh: !this._aligned,
+    const scene = this._scene;
+    const drone = this._background === "drone";
+    const base = this._reference || (drone ? {
+      anchor_x: 0, anchor_y: 0, latitude: 0, longitude: 0, heading: 0, scale: 0.001,
+    } : undefined);
+    if (!scene || (!drone && !scene.projection) || !base || !this._canAlign) return;
+    this._align = { mode: drone ? "drone" : "world", base,
+      adjustment: drone ? { ...this._droneAlignment } : { ...IDENTITY_ADJUSTMENT },
+      fresh: drone ? !this._droneAlignmentSaved : !this._aligned,
       context: this._alignmentContext(this._scene!) };
     this._alignError = undefined;
     this._baseTool = undefined;
     // Leave room around the frame so its corner and rotate handles are reachable.
-    const scene = this._scene;
     if (scene) {
       this._view = zoomMap(fitMap(scene.width, scene.height), 1 / 1.6,
         mapCentre(scene.width, scene.height), scene.width, scene.height, this._limits);
@@ -356,6 +398,35 @@ export class LawnMowerMowingMap extends LitElement {
 
   private _saveAlign = async (): Promise<void> => {
     const scene = this._scene, align = this._align, hass = this.hass, entityId = this.entityId;
+    if (align?.mode === "drone") {
+      if (this._saving) return;
+      if (!this.configEditable) {
+        this._alignError = this._t("mowingMap.droneAlignEditorOnly");
+        return;
+      }
+      if (!scene || !this._dronePhoto || align.context !== this._alignmentContext(scene)) {
+        this._cancelAlign();
+        return;
+      }
+      this._stopHold();
+      this._saving = true;
+      this._alignError = undefined;
+      try {
+        this.dispatchEvent(new CustomEvent<{ alignment: MapAdjustment }>(
+          "drone-alignment-changed",
+          { detail: { alignment: { ...align.adjustment } }, bubbles: true, composed: true },
+        ));
+        if (!this.isConnected || this._align !== align || !this._scene ||
+            align.context !== this._alignmentContext(this._scene)) return;
+        this._baseTool = undefined;
+        this._align = undefined;
+        this._fit();
+        this._showNotice("mowingMap.alignSaved");
+      } finally {
+        this._saving = false;
+      }
+      return;
+    }
     if (!scene?.projection || !scene.map_revision || !align || !hass || !entityId || this._saving) return;
     if (align.context !== this._alignmentContext(scene)) {
       this._cancelAlign();
@@ -741,7 +812,8 @@ export class LawnMowerMowingMap extends LitElement {
 
   private _backgroundLabel(background: MapBackground): string {
     const keys: Record<MapBackground, TranslationKey> = {
-      standard: "mowingMap.backgroundStandard", real_scene: "mowingMap.realScene",
+      standard: "mowingMap.backgroundStandard", drone: "mowingMap.dronePhoto",
+      real_scene: "mowingMap.realScene",
       map: "mowingMap.backgroundMap", satellite: "mowingMap.backgroundSatellite",
     };
     return this._t(keys[background]);
@@ -803,12 +875,17 @@ export class LawnMowerMowingMap extends LitElement {
    * constant screen size over every background; they follow the mower map,
    * also while aligning.
    */
-  private _renderOverlayText(scene: MowingMapScene, align: AlignSession | undefined) {
+  private _renderOverlayText(
+    scene: MowingMapScene,
+    align: AlignSession | undefined,
+    appliedAdjustment?: MapAdjustment,
+  ) {
     const projection = scene.projection;
     if (!projection) return nothing;
     const centre = mapCentre(scene.width, scene.height);
+    const activeAdjustment = align?.adjustment ?? appliedAdjustment;
     const toScreen = (pixel: MapPoint) => mapToScreen(
-      align ? adjustPoint(align.adjustment, centre, pixel) : pixel, this._view, this._size);
+      activeAdjustment ? adjustPoint(activeAdjustment, centre, pixel) : pixel, this._view, this._size);
     const labels = cardDrawsZoneLabels(scene) ? placeZoneLabels((scene.zones ?? []).map((zone) => ({
       name: zone.name, ...toScreen(nativeToPixel(projection, { x: zone.label_x, y: zone.label_y })),
     })), this._size, ZONE_LABEL_PX) : [];
@@ -847,6 +924,7 @@ export class LawnMowerMowingMap extends LitElement {
   }
 
   private _renderAlignBar(align: AlignSession) {
+    const droneAlign = align.mode === "drone";
     const { rotation, scale } = align.adjustment;
     const number = (options: Intl.NumberFormatOptions) => new Intl.NumberFormat(this.locale, options);
     const degrees = number({ minimumFractionDigits: 1, maximumFractionDigits: 1, signDisplay: "exceptZero" })
@@ -868,7 +946,7 @@ export class LawnMowerMowingMap extends LitElement {
     return html`
       <div class="align-bar" role="group" aria-label=${this._t("mowingMap.alignTools")}>
         ${this._baseTool ? nothing : html`<p class="align-help">${this._t("mowingMap.alignHint")}</p>`}
-        <div class="align-row base-tool">
+        ${droneAlign ? nothing : html`<div class="align-row base-tool">
           <button aria-pressed=${this._baseTool ? "true" : "false"} @click=${this._toggleBaseTool}
             >${this._t("mowingMap.baseTool")}</button>
           ${this._baseTool ? html`
@@ -878,7 +956,7 @@ export class LawnMowerMowingMap extends LitElement {
               ? html`<button class="primary" ?disabled=${!this._baseTool.pivot} @click=${this._baseToolNext}
                   >${this._t("mowingMap.baseToolNext")}</button>`
               : html`<button @click=${this._baseToolRestart}>${this._t("mowingMap.baseToolRestart")}</button>`}` : nothing}
-        </div>
+        </div>`}
         <div class="align-row">
           <div class="stepper" role="group" aria-label=${this._t("mowingMap.alignRotation", { value: degrees })}>
             <span class="stepper-label">${this._t("mowingMap.rotationLabel")}</span>
@@ -896,7 +974,7 @@ export class LawnMowerMowingMap extends LitElement {
         <div class="align-row">
           ${this._alignError || align.fresh ? html`
             <span class=${`align-hint${this._alignError ? " error" : ""}`} role="status">${this._alignError ||
-              this._t("mowingMap.alignNew")}</span>` : html`<span class="align-hint"></span>`}
+              this._t(droneAlign ? "mowingMap.droneAlignNew" : "mowingMap.alignNew")}</span>` : html`<span class="align-hint"></span>`}
           <div class="align-actions">
             <button @click=${this._cancelAlign} ?disabled=${this._saving}>${this._t("mowingMap.alignCancel")}</button>
             <button class="primary" @click=${this._saveAlign} ?disabled=${this._saving}>
@@ -940,15 +1018,21 @@ export class LawnMowerMowingMap extends LitElement {
     const zoom = scene ? scene.width / this._view.width : 1;
     const world = scene ? this._world : undefined;
     const reference = world ? this._reference : undefined;
-    const align = world ? this._align : undefined;
-    const adjustment = scene && align
-      ? `matrix(${adjustmentMatrix(align.adjustment, mapCentre(scene.width, scene.height)).join(" ")})` : undefined;
+    const dronePhoto = this._background === "drone" ? this._dronePhoto : undefined;
+    const align = world || dronePhoto ? this._align : undefined;
     const minZoom = scene ? 1 / this._limits.maxWidth : 1;
     // Over street map or satellite (not while aligning), the garden is emphasised.
     const emphasis = world && !align ? gardenEmphasis(unitsPerScreenPixel) : undefined;
     // Inside an aligning map, map pixels are drawn larger by the adjustment's size.
-    const marker = mowerMarkerTransform(unitsPerScreenPixel / (align?.adjustment.scale ?? 1),
+    const marker = mowerMarkerTransform(
+      unitsPerScreenPixel / (align?.adjustment.scale ?? (dronePhoto ? this._droneAlignment.scale : 1)),
       scene?.projection?.scale, this.mowerSize);
+    const mapAdjustment = scene && (align || dronePhoto)
+      ? adjustmentMatrix(
+        align?.adjustment ?? this._droneAlignment,
+        mapCentre(scene.width, scene.height),
+      )
+      : undefined;
     const body = html`
       <div class="viewport" data-map-state=${this._error ? "error" : scene ? "ready" : "loading"}>
         <div class="toolbar" aria-label=${this._t("mowingMap.tools")}>
@@ -959,7 +1043,7 @@ export class LawnMowerMowingMap extends LitElement {
             <button class="zoom" @click=${() => this._zoom(1 / 1.4)} ?disabled=${!scene || zoom <= minZoom}
               title=${this._t("mowingMap.zoomOut")} aria-label=${this._t("mowingMap.zoomOut")}>−</button>
             ${this._renderBackgroundPicker(scene)}
-            ${world && !align && this._canAlign ? html`
+            ${(world || dronePhoto) && !align && this._canAlign ? html`
               <button class="align-button" @click=${this._startAlign}
                 aria-label=${this._t("mowingMap.align")} title=${this._t("mowingMap.align")}
                 >${mapControlIcon("align")}<span>${this._t("mowingMap.align")}</span></button>` : nothing}
@@ -981,10 +1065,13 @@ export class LawnMowerMowingMap extends LitElement {
             @pointercancel=${this._up} @lostpointercapture=${this._up}
             @wheel=${this._wheel} @keydown=${this._key}
             @touchstart=${this._noTouchDefault} @contextmenu=${this._noDefault} @selectstart=${this._noDefault}>
+            ${dronePhoto ? svg`
+              <image class="real-scene" href=${dronePhoto} x="0" y="0"
+                width=${scene.width} height=${scene.height} preserveAspectRatio="none" />` : nothing}
             <g class=${`mower-layer${world ? " over-world" : ""}${align ? " aligning" : ""}`}
-              transform=${adjustment ?? nothing}>
+                transform=${mapAdjustment ?? nothing}>
             ${this._photoWanted && this._photo && this._photoPath === scene.real_scene_path ? svg`
-              <image class="real-scene" href=${this._photo} x="0" y="0"
+                <image class="real-scene" href=${this._photo} x="0" y="0"
                 width=${scene.width} height=${scene.height} />` : nothing}
             ${emphasis ? svg`<defs>
               <filter id="garden-emphasis" x="-5%" y="-5%" width="110%" height="110%"
@@ -1017,8 +1104,10 @@ export class LawnMowerMowingMap extends LitElement {
             </g>
             ${align ? this._renderHandles(scene, align, unitsPerScreenPixel) : nothing}
           </svg>
-          ${this._renderOverlayText(scene, align)}
-          ${align ? this._renderBasePin(scene, align) : nothing}
+          ${this._renderOverlayText(
+            scene, align, dronePhoto ? (align?.adjustment ?? this._droneAlignment) : undefined,
+          )}
+          ${align && align.mode === "world" ? this._renderBasePin(scene, align) : nothing}
           ${world ? this._renderAttribution(world) : nothing}
           ${world && !align && !this._aligned ? html`
             <div class="map-notice">${this._t("mowingMap.notAligned")}</div>` : this._notice ? html`

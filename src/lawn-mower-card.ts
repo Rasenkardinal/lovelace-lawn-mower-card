@@ -37,11 +37,14 @@ import { mowingAreaProgress, type MowingAreaProgress } from "./mowing-progress";
 import {
   getStubConfig,
   worldTileConfig,
+  type ConfigChangedDetail,
   type HassEntity,
   type HomeAssistant,
   type LawnMowerActionConfig,
   type LawnMowerCardConfig,
 } from "./card-config";
+import { readDroneMapAdjustment } from "./drone-image";
+import type { MapAdjustment } from "./map-georeference-logic";
 
 import {
   cameraBlockReason,
@@ -285,6 +288,7 @@ const VALUE_ALIASES: Record<string, string> = {
 @customElement("lawn-mower-card")
 export class LawnMowerCard extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
+  @property({ type: Boolean }) public preview = false;
 
   @state() private _config?: LawnMowerCardConfig;
   @state() private _pendingCustomAction?: LawnMowerActionConfig;
@@ -449,8 +453,22 @@ export class LawnMowerCard extends LitElement {
     }
   }
 
+  private _handleDroneAlignmentChanged = (event: Event): void => {
+    const detail = (event as CustomEvent<{ alignment?: unknown }>).detail;
+    const alignment = readDroneMapAdjustment(detail?.alignment);
+    if (!alignment || !this._config || !this.preview) return;
+    const next = { ...this._config, drone_background_alignment: alignment };
+    this._config = next;
+    this.dispatchEvent(new CustomEvent<ConfigChangedDetail>("config-changed", {
+      detail: { config: next },
+      bubbles: true,
+      composed: true,
+    }));
+  };
+
   public connectedCallback(): void {
     super.connectedCallback();
+    this.addEventListener("drone-alignment-changed", this._handleDroneAlignmentChanged);
     this._mediaVisibility.connect();
     // The Hero action row holds as many readable buttons as the card's width allows.
     this._widthObserver ??= typeof ResizeObserver === "undefined" ? undefined
@@ -487,6 +505,7 @@ export class LawnMowerCard extends LitElement {
   }
 
   public disconnectedCallback(): void {
+    this.removeEventListener("drone-alignment-changed", this._handleDroneAlignmentChanged);
     this._widthObserver?.disconnect();
     window.clearTimeout(this._labelFitFrame);
     this._labelFitFrame = undefined;
@@ -762,6 +781,9 @@ export class LawnMowerCard extends LitElement {
                           .appearanceContext=${this._config}
                           .layoutContext=${headerSummary}
                           .background=${this._config.map_background}
+                          .droneBackgroundImage=${this._config.drone_background_image}
+                          .droneBackgroundAlignment=${this._config.drone_background_alignment}
+                          .configEditable=${this.preview}
                           .entityId=${this._config.entity} .tiles=${worldTileConfig(this._config)}
                           .mowerSize=${mowerMarkerSize(this._config)}
             .markerImage=${markerImageUrl(this._config.mower_marker_image)}
@@ -1027,6 +1049,9 @@ export class LawnMowerCard extends LitElement {
       taskHistoryPath: historyPath(mower.attributes.task_history_api_path),
       seasonSources: season,
       mapBackground: this._config.map_background,
+      droneBackgroundImage: this._config.drone_background_image,
+      droneBackgroundAlignment: this._config.drone_background_alignment,
+      configEditable: this.preview,
       mowerEntityId: this._config.entity,
       worldTiles: worldTileConfig(this._config),
       mowerSize: mowerMarkerSize(this._config),

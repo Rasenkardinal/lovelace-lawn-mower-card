@@ -1,6 +1,7 @@
 import type { HeroImagePosition } from "./hero-image";
 import type { LocalePreference } from "./localization";
 import type { MapFit, MapPosition } from "./map-presentation";
+import type { MapAdjustment } from "./map-georeference-logic";
 
 export type HassEntity = {
   entity_id: string;
@@ -92,7 +93,11 @@ export type LawnMowerCardConfig = {
   hero_image_position?: HeroImagePosition;
   map_entity?: string;
   map_fit?: MapFit;
-  map_background?: "standard" | "real_scene" | "map" | "satellite";
+  map_background?: "standard" | "drone" | "real_scene" | "map" | "satellite";
+  /** Compressed JPEG data URL uploaded in the visual editor. */
+  drone_background_image?: string;
+  /** Photo-specific adjustment, stored separately from the mower's GPS georeference. */
+  drone_background_alignment?: MapAdjustment;
   /** Tile template with {z}, {x}, {y} for the street map background. */
   map_tile_url?: string;
   map_tile_attribution?: string;

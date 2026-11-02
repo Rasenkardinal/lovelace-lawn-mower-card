@@ -161,7 +161,7 @@ export function signedPathMatches(requested: string, signed: string): boolean {
   return true;
 }
 
-export const MAP_BACKGROUNDS = ["standard", "real_scene", "map", "satellite"] as const;
+export const MAP_BACKGROUNDS = ["standard", "drone", "real_scene", "map", "satellite"] as const;
 export type MapBackground = (typeof MAP_BACKGROUNDS)[number];
 
 /** Unknown values keep the standard background. */
@@ -180,8 +180,10 @@ export function isWorldBackground(value: MapBackground): value is "map" | "satel
 export function availableMapBackgrounds(
   scene: Pick<MowingMapScene, "real_scene_path" | "projection" | "georeference"> | undefined,
   hasHome: boolean,
+  hasDronePhoto = false,
 ): MapBackground[] {
   const choices: MapBackground[] = ["standard"];
+  if (hasDronePhoto) choices.push("drone");
   if (scene?.real_scene_path) choices.push("real_scene");
   if (scene?.projection && (scene.georeference || hasHome)) choices.push("map", "satellite");
   return choices;

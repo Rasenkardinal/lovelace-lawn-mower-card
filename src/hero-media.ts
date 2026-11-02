@@ -48,6 +48,9 @@ export function renderHeroMedia(model: HeroLayoutModel, views: readonly HeroView
         .appearanceContext=${model.appearanceContext}
         .layoutContext=${model}
         .background=${model.mapBackground}
+        .droneBackgroundImage=${model.droneBackgroundImage}
+        .droneBackgroundAlignment=${model.droneBackgroundAlignment}
+        .configEditable=${Boolean(model.configEditable)}
         .entityId=${model.mowerEntityId} .tiles=${model.worldTiles} .mowerSize=${model.mowerSize ?? null} .markerImage=${model.markerImage}
         .worldDim=${model.worldDim}
         .fallbackUrl=${model.mapUrl} .fallbackSaved=${Boolean(model.mapSavedPreview)}

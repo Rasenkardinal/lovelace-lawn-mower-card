@@ -153,6 +153,24 @@ export const lawnMowerCardEditorStyles = css`
       color: #ffb4b4;
     }
 
+    .drone-background {
+      display: grid;
+      gap: 8px;
+    }
+
+    .drone-preview {
+      display: grid;
+      justify-items: start;
+      gap: 8px;
+    }
+
+    .drone-preview img {
+      max-width: 100%;
+      max-height: 180px;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+
     @media (max-width: 640px) {
       .row-grid {
         grid-template-columns: 1fr;

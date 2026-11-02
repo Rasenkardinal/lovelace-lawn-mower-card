@@ -10,6 +10,7 @@ import {
   type MapFit,
   type MapPosition,
 } from "./map-presentation";
+import type { MapAdjustment } from "./map-georeference-logic";
 import { renderMowingMission } from "./mowing-mission";
 import type { MowingAreaProgress } from "./mowing-progress";
 
@@ -50,6 +51,9 @@ export type HeroLayoutModel = {
   taskHistoryPath?: string;
   seasonSources?: SeasonSources;
   mapBackground?: string;
+  droneBackgroundImage?: string;
+  droneBackgroundAlignment?: MapAdjustment;
+  configEditable?: boolean;
   /** Mower entity for map services such as set_georeference. */
   mowerEntityId?: string;
   worldTiles?: WorldTileConfig;

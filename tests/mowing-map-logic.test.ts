@@ -121,8 +121,8 @@ test("a real-scene layer is accepted only for the same entry and revision", () =
   }
 });
 
-test("map backgrounds accept the four known choices and keep standard otherwise", () => {
-  for (const value of ["real_scene", "map", "satellite", "standard"]) {
+test("map backgrounds accept the known choices and keep standard otherwise", () => {
+  for (const value of ["drone", "real_scene", "map", "satellite", "standard"]) {
     assert.equal(normalizeMapBackground(value), value);
   }
   for (const value of [undefined, "photo", "Satellite", 1]) {
@@ -140,6 +140,7 @@ test("geographic backgrounds need a projection and an alignment or a home", () =
   assert.equal(scene.projection, null);
   assert.equal(scene.georeference, null);
   assert.deepEqual(availableMapBackgrounds(scene, true), ["standard"]);
+  assert.deepEqual(availableMapBackgrounds(scene, false, true), ["standard", "drone"]);
   const projected = readMowingMapScene({ ...payload(), projection, georeference: null }, path);
   assert.deepEqual(projected.projection, projection);
   assert.deepEqual(availableMapBackgrounds(projected, false), ["standard"]);
@@ -147,6 +148,7 @@ test("geographic backgrounds need a projection and an alignment or a home", () =
   const aligned = readMowingMapScene({ ...payload(), projection, georeference }, path);
   assert.deepEqual(aligned.georeference, georeference);
   assert.deepEqual(availableMapBackgrounds(aligned, false), ["standard", "map", "satellite"]);
+  assert.deepEqual(availableMapBackgrounds(aligned, false, true), ["standard", "drone", "map", "satellite"]);
   assert.equal(effectiveMapBackground("satellite", ["standard"]), "standard");
   assert.equal(effectiveMapBackground("map", availableMapBackgrounds(aligned, false)), "map");
   for (const broken of [{ ...projection, rotation: 45 }, { ...projection, scale: 0 }, "x"]) {
