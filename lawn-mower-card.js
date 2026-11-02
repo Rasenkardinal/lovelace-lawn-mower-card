@@ -1837,7 +1837,7 @@ var wl=Object.defineProperty;var kl=Object.getOwnPropertyDescriptor;var v=(t,o,e
             ${p?this._renderHandles(e,p,a):u}
           </svg>
           ${this._renderOverlayText(e,p,c?p?.adjustment??this._droneAlignment:void 0)}
-          ${p&&p.mode==="world"?this._renderBasePin(e,p):u}
+          ${p?this._renderBasePin(e,p):u}
           ${s?this._renderAttribution(s):u}
           ${s&&!p&&!this._aligned?d`
             <div class="map-notice">${this._t("mowingMap.notAligned")}</div>`:this._notice?d`

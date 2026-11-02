@@ -1107,7 +1107,7 @@ export class LawnMowerMowingMap extends LitElement {
           ${this._renderOverlayText(
             scene, align, dronePhoto ? (align?.adjustment ?? this._droneAlignment) : undefined,
           )}
-          ${align && align.mode === "world" ? this._renderBasePin(scene, align) : nothing}
+          ${align ? this._renderBasePin(scene, align) : nothing}
           ${world ? this._renderAttribution(world) : nothing}
           ${world && !align && !this._aligned ? html`
             <div class="map-notice">${this._t("mowingMap.notAligned")}</div>` : this._notice ? html`
